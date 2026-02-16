@@ -347,15 +347,17 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
 <script>
   // Preload social image
   // --- Logo preload (keeps PNG export "user gesture" friendly)
-const LOGO_SRC = "BSBowl.png";
+const LOGO_SRC = new URL("BSBowl.png", location.href).href;
 let LOGO_IMG = null;
 
 function preloadLogo(){
   const img = new Image();
+  img.crossOrigin = "anonymous";   // ✅ prevents taint when server allows it
   img.onload = () => { LOGO_IMG = img; };
   img.onerror = () => { console.warn("Logo failed to load:", LOGO_SRC); };
   img.src = LOGO_SRC;
 }
+
   // =========================
   // Config
   // =========================
@@ -988,264 +990,142 @@ if (editingLocked) setEditingLocked(true);
     return y + lineHeight;
   }
 
-function exportResultsPNG(){
+function exportResultsPNG(skipLogo = false){
   try {
-  const rows = getStandingsRows().slice(0, 9); // top 9 only
-  const leaders = Array.from({length:4}).map((_,gi)=>top2ForGame(gi));
+    const rows = getStandingsRows().slice(0, 9);
+    const leaders = Array.from({length:4}).map((_,gi)=>top2ForGame(gi));
 
-  const title = "Tournament Night Results";
-  const subtitle = "Best 3 of 4 • Handicap 80% of 210 • High Game = Handicap Added";
-  const timestamp = new Date().toLocaleString();
+    const title = "Tournament Night Results";
+    const subtitle = "Best 3 of 4 • Handicap 80% of 210 • High Game = Handicap Added";
+    const timestamp = new Date().toLocaleString();
 
-  const W = 1400;
-  const margin = 70;
+    const W = 1400;
+    const margin = 70;
 
+    const roundRect = (ctx, x, y, w, h, r) => {
+      const rr = Math.min(r, w/2, h/2);
+      ctx.beginPath();
+      ctx.moveTo(x+rr, y);
+      ctx.arcTo(x+w, y, x+w, y+h, rr);
+      ctx.arcTo(x+w, y+h, x, y+h, rr);
+      ctx.arcTo(x, y+h, x, y, rr);
+      ctx.arcTo(x, y, x+w, y, rr);
+      ctx.closePath();
+    };
 
-
-  const roundRect = (ctx, x, y, w, h, r) => {
-    const rr = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+rr, y);
-    ctx.arcTo(x+w, y, x+w, y+h, rr);
-    ctx.arcTo(x+w, y+h, x, y+h, rr);
-    ctx.arcTo(x, y+h, x, y, rr);
-    ctx.arcTo(x, y, x+w, y, rr);
-    ctx.closePath();
-  };
-
-  const drawBadge = (ctx, x, y, text, bg, fg) => {
-    ctx.font = "700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    const padX = 14, padY = 8;
-    const tw = ctx.measureText(text).width;
-    const w = tw + padX*2;
-    const h = 18 + padY*2;
-    roundRect(ctx, x, y, w, h, 999);
-    ctx.fillStyle = bg;
-    ctx.fill();
-    ctx.fillStyle = fg;
-    ctx.fillText(text, x + padX, y + h - padY - 2);
-    return {w, h};
-  };
-
-  // --- Build text lines
-  const hiGameLines = [];
-  for (let gi=0; gi<4; gi++){
-    const first = leaders[gi].first.length
-      ? leaders[gi].first.map(x=>`${x.team} (${x.total})`).join(", ")
-      : "—";
-    const second = leaders[gi].second.length
-      ? leaders[gi].second.map(x=>`${x.team} (${x.total})`).join(", ")
-      : "—";
-    hiGameLines.push({game: gi+1, first, second});
-  }
-
-  // --- Layout sizing
-  // Header + blocks
-  const headerH = 220;
-  const blockGap = 26;
-  const lineH = 34;
-
-  // High game block: title + 4 lines
-  const hiH = 54 + (hiGameLines.length * lineH) + 24;
-
-  // Top 9 block: title + 9 lines
-  const topH = 54 + (rows.length * 44) + 24;
-
-  const H = margin + headerH + blockGap + hiH + blockGap + topH + margin;
-
-  // --- Canvas
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d");
-
-  // background
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0,0,W,H);
-
-  // subtle retro header ribbon
-  ctx.fillStyle = "#0ea5e9"; // bright bowling-lane blue
-  roundRect(ctx, margin, margin, W - margin*2, 140, 22);
-  ctx.fill();
-
-  // inner light overlay
-  ctx.globalAlpha = 0.12;
-  ctx.fillStyle = "#ffffff";
-  roundRect(ctx, margin + 18, margin + 18, W - margin*2 - 36, 104, 18);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-
-  // load logo (same-origin file in repo root)
-
-
-// draw logo (preloaded)
-const logoBox = {x: margin + 20, y: margin + 18, w: 150, h: 150};
-if (LOGO_IMG){
-  const scale = Math.min(logoBox.w / LOGO_IMG.width, logoBox.h / LOGO_IMG.height);
-  const dw = Math.round(LOGO_IMG.width * scale);
-  const dh = Math.round(LOGO_IMG.height * scale);
-  const dx = logoBox.x + Math.round((logoBox.w - dw)/2);
-  const dy = logoBox.y + Math.round((logoBox.h - dh)/2);
-
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,.25)";
-  ctx.shadowBlur = 12;
-  ctx.shadowOffsetY = 6;
-  ctx.drawImage(LOGO_IMG, dx, dy, dw, dh);
-  ctx.restore();
-} else {
-  console.warn("Logo not loaded yet (try again in a second).");
-}
-
-
-  // title/subtitle
-  ctx.fillStyle = "#0b1b3a";
-  ctx.font = "800 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText(title, margin + 200, margin + 70);
-
-  ctx.fillStyle = "rgba(11,27,58,.85)";
-  ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText(subtitle, margin + 200, margin + 102);
-
-  // timestamp badge
-  drawBadge(ctx, margin + 200, margin + 116, timestamp, "rgba(255,255,255,.92)", "#0b1b3a");
-
-  // ---- Blocks
-  let y = margin + headerH;
-
-  const drawBlock = (titleText) => {
-    // block card
-    ctx.fillStyle = "#ffffff";
-    ctx.save();
-    ctx.shadowColor = "rgba(0,0,0,.08)";
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetY = 8;
-    roundRect(ctx, margin, y, W - margin*2, 10, 18); // temporary height; we'll just draw top strip + text
-    ctx.restore();
-
-    // header text
-    ctx.fillStyle = "#0b1b3a";
-    ctx.font = "800 26px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(titleText, margin + 22, y + 42);
-
-    // divider
-    ctx.strokeStyle = "#e5e7eb";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(margin + 18, y + 60);
-    ctx.lineTo(W - margin - 18, y + 60);
-    ctx.stroke();
-
-    return y + 74;
-  };
-
-  // High Game Winners block
-  // draw the full card background with correct height
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,.08)";
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 8;
-  ctx.fillStyle = "#ffffff";
-  roundRect(ctx, margin, y, W - margin*2, hiH, 18);
-  ctx.fill();
-  ctx.restore();
-
-  let yy = drawBlock("High Game Winners (Eligible Teams • With Handicap)");
-
-  ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillStyle = "#111827";
-
-  hiGameLines.forEach((ln) => {
-    ctx.fillText(`Game ${ln.game}`, margin + 22, yy + 22);
-
-    ctx.fillStyle = "#111827";
-    ctx.font = "700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(`1st: ${ln.first}`, margin + 170, yy + 22);
-
-    ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillStyle = "#374151";
-    ctx.fillText(`2nd: ${ln.second}`, margin + 170, yy + 46);
-
-    yy += lineH + 10;
-  });
-
-  y += hiH + blockGap;
-
-  // Top 9 Standings block (with podium styling)
-  ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,.08)";
-  ctx.shadowBlur = 18;
-  ctx.shadowOffsetY = 8;
-  ctx.fillStyle = "#ffffff";
-  roundRect(ctx, margin, y, W - margin*2, topH, 18);
-  ctx.fill();
-  ctx.restore();
-
-  yy = drawBlock("Top 9 Standings (Best 3 of 4 • With Handicap)");
-
-  const medal = (i) => i===0 ? {bg:"#f6e58d", fg:"#111827", label:"1"} :
-                        i===1 ? {bg:"#e5e7eb", fg:"#111827", label:"2"} :
-                        i===2 ? {bg:"#f3c6a8", fg:"#111827", label:"3"} :
-                                {bg:"#f3f4f6", fg:"#111827", label:String(i+1)};
-
-  rows.forEach((r, i) => {
-    const total = (r.best3==null ? "—" : String(r.best3));
-    const m = medal(i);
-
-    // row background
-    const rowY = yy + i*44;
-    if (i < 3){
-      ctx.fillStyle = i===0 ? "rgba(246,229,141,.35)" :
-                     i===1 ? "rgba(229,231,235,.55)" :
-                             "rgba(243,198,168,.40)";
-      roundRect(ctx, margin + 18, rowY - 8, W - margin*2 - 36, 40, 14);
+    const drawBadge = (ctx, x, y, text, bg, fg) => {
+      ctx.font = "700 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+      const padX = 14, padY = 8;
+      const tw = ctx.measureText(text).width;
+      const w = tw + padX*2;
+      const h = 18 + padY*2;
+      roundRect(ctx, x, y, w, h, 999);
+      ctx.fillStyle = bg;
       ctx.fill();
+      ctx.fillStyle = fg;
+      ctx.fillText(text, x + padX, y + h - padY - 2);
+      return {w, h};
+    };
+
+    // --- Build leaders text
+    const hiGameLines = [];
+    for (let gi=0; gi<4; gi++){
+      const t2 = leaders[gi];
+      const first = t2.first.length ? t2.first.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      const second = t2.second.length ? t2.second.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      hiGameLines.push({game: gi+1, first, second});
     }
 
-    // rank pill
-    ctx.fillStyle = m.bg;
-    roundRect(ctx, margin + 22, rowY - 4, 42, 32, 12);
+    // --- layout sizing
+    const headerH = 220;
+    const blockGap = 26;
+    const lineH = 34;
+    const hiH = 54 + (hiGameLines.length * lineH) + 24;
+    const topH = 54 + (rows.length * 44) + 24;
+    const H = margin + headerH + blockGap + hiH + blockGap + topH + margin;
+
+    // --- Canvas
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    // background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,W,H);
+
+    // retro header ribbon
+    ctx.fillStyle = "#0ea5e9";
+    roundRect(ctx, margin, margin, W - margin*2, 140, 22);
     ctx.fill();
-    ctx.fillStyle = m.fg;
-    ctx.font = "800 16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(m.label, margin + 38, rowY + 18);
 
-    // team + score
-    ctx.fillStyle = "#111827";
-    ctx.font = "800 20px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(r.team, margin + 78, rowY + 18);
+    ctx.globalAlpha = 0.12;
+    ctx.fillStyle = "#ffffff";
+    roundRect(ctx, margin + 18, margin + 18, W - margin*2 - 36, 104, 18);
+    ctx.fill();
+    ctx.globalAlpha = 1;
 
-    ctx.fillStyle = "#111827";
-    ctx.font = "900 22px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    const scoreW = ctx.measureText(total).width;
-    ctx.fillText(total, W - margin - 22 - scoreW, rowY + 18);
+    // ----- LOGO (only draw if safe)
+    let drewLogo = false;
+    const logoBox = {x: margin + 20, y: margin + 18, w: 150, h: 150};
 
-    // small line under for avg/hcp
-    ctx.fillStyle = "#6b7280";
-    ctx.font = "600 14px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(`Avg ${r.avg} • HCP ${r.hcp}`, margin + 78, rowY + 36);
-  });
+    const isHttp = location.protocol === "http:" || location.protocol === "https:";
+    const sameOriginLogo = (() => {
+      try { return new URL(LOGO_SRC).origin === location.origin; } catch { return false; }
+    })();
 
-  // footer note
-  ctx.fillStyle = "#6b7280";
-  ctx.font = "600 13px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-  ctx.fillText("Generated by Tournament Night (Demo)", margin, H - margin + 24);
+    if (!skipLogo && isHttp && sameOriginLogo && LOGO_IMG && LOGO_IMG.complete && LOGO_IMG.naturalWidth > 0){
+      const scale = Math.min(logoBox.w / LOGO_IMG.width, logoBox.h / LOGO_IMG.height);
+      const dw = Math.round(LOGO_IMG.width * scale);
+      const dh = Math.round(LOGO_IMG.height * scale);
+      const dx = logoBox.x + Math.round((logoBox.w - dw)/2);
+      const dy = logoBox.y + Math.round((logoBox.h - dh)/2);
 
-  // download (robust)
-const dataUrl = canvas.toDataURL("image/png");
-const a = document.createElement("a");
-a.download = "tournament-results.png";
-a.href = dataUrl;
-a.style.display = "none";
-document.body.appendChild(a);
-a.dispatchEvent(new MouseEvent("click", { bubbles:true, cancelable:true, view:window }));
-setTimeout(() => a.remove(), 0);
+      ctx.save();
+      ctx.shadowColor = "rgba(0,0,0,.25)";
+      ctx.shadowBlur = 12;
+      ctx.shadowOffsetY = 6;
+      ctx.drawImage(LOGO_IMG, dx, dy, dw, dh);
+      ctx.restore();
+      drewLogo = true;
+    }
+
+    // title/subtitle
+    ctx.fillStyle = "#0b1b3a";
+    ctx.font = "800 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(title, margin + 200, margin + 70);
+
+    ctx.fillStyle = "rgba(11,27,58,.85)";
+    ctx.font = "600 18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(subtitle, margin + 200, margin + 102);
+
+    drawBadge(ctx, margin + 200, margin + 116, timestamp, "rgba(255,255,255,.92)", "#0b1b3a");
+
+    // ... keep ALL your existing block drawing code here (High Game Winners + Top 9 Standings) ...
+    // (Everything below this point in your current function can remain unchanged)
+
+    // IMPORTANT: leave your existing drawing code as-is, then keep this download block:
+
+    const dataUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.download = "tournament-results.png";
+    a.href = dataUrl;
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.dispatchEvent(new MouseEvent("click", { bubbles:true, cancelable:true, view:window }));
+    setTimeout(() => a.remove(), 0);
 
   } catch (e) {
-    console.error('exportResultsPNG error:', e);
-    alert('PNG export failed. Open DevTools → Console for details.');
+    // If tainted and we drew the logo, retry once without logo
+    if (e && e.name === "SecurityError" && skipLogo === false) {
+      console.warn("Canvas tainted; retrying PNG export without logo.");
+      return exportResultsPNG(true);
+    }
+    console.error("exportResultsPNG error:", e);
+    alert("PNG export failed. Open DevTools → Console for details.");
   }
 }
+
 
 
 
