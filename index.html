@@ -3,7 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Bowling Tournament Demo — Best 3 of 4 (Handicap)</title>
+  <title>Tournament Night - Best 3 of 4</title>
+  <link rel="icon" href="/favicon.ico">
   <style>
     :root { --border:#e6e6e6; --muted:#666; --text:#111; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; color:var(--text); }
@@ -223,7 +224,7 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
   </style>
 </head>
 <body>
-  <h1>Tournament Night (Demo)</h1>
+  <h1>Tournament Night</h1>
   <div class="sub">
     4 games • Best 3 of 4 • Standings sorted high→low • Top 2 per game (with handicap, ties shown)
     <div class="rule mono">Handicap/game = ROUND(MAX(0, (210 − Avg) × 0.80))</div>
@@ -238,7 +239,8 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
       <div class="btns">
         
         <button class="secondary" id="toggleToolsBtn">Hide Tools</button>
-<button class="secondary" id="randomBtn">Random Sample Data</button>
+      <!--Button class="secondary" id="randomBtn">Random Sample Data</button>-->
+        <button class="secondary" id="lockBtn">Lock Editing</button>
         <button class="secondary" id="clearBtn">Clear Scores</button>
         <button class="secondary" id="printBtn">Print Results</button>
 		<button class="secondary" id="tvBtn">TV Mode</button>
@@ -273,7 +275,7 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
       <div class="card" style="padding:10px;">
         <div class="muted">Notes</div>
         <ul class="muted" style="margin:6px 0 0; padding-left:18px;">
-          <li>Standings appear once a team has <span class="mono">3</span> games.</li>
+          <li>Standings appear once all teams have comlpeted <span class="mono">1</span> game.</li>
           <li>Top 2 per game uses <strong>handicap-added totals</strong>.</li>
           <li>Print hides all entry inputs automatically.</li>
         </ul>
@@ -493,6 +495,8 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
       });
       tdAvg.appendChild(inpAvg);
       tr.appendChild(tdAvg);
+// re-apply lock state after rebuilding rows
+if (editingLocked) setEditingLocked(true);
 
       // ✅ HG Eligible checkbox column (HG?)
       const tdElig = document.createElement("td");
@@ -973,85 +977,105 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
     return y + lineHeight;
   }
 
-  function exportResultsPNG(){
-    const rows = getStandingsRows();
-    const leaders = Array.from({length:4}).map((_,gi)=>top2ForGame(gi));
+function exportResultsPNG(){
+  const rows = getStandingsRows().slice(0, 9); // ✅ Only top 9
+  const leaders = Array.from({length:4}).map((_,gi)=>top2ForGame(gi));
 
-    const title = "Tournament Results";
-    const rule  = "Handicap/game = ROUND(MAX(0, (210 − Avg) × 0.80))";
-    const timestamp = new Date().toLocaleString();
+  const title = "Tournament Results";
+  const rule  = "Best 3 of 4 with handicap (80% of 210)";
+  const timestamp = new Date().toLocaleString();
 
-    const W = 1400;
-    const margin = 60;
+  const W = 1200;
+  const margin = 60;
 
-    const lines = [];
-    lines.push({type:"h2", text:"Top 2 Per Game (with handicap, eligible teams only)"});
-    for (let gi=0; gi<4; gi++){
-      const first = leaders[gi].first.length ? leaders[gi].first.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
-      const second = leaders[gi].second.length ? leaders[gi].second.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
-      lines.push({type:"row", text:`Game ${gi+1}:  1st: ${first}   |   2nd: ${second}`});
-    }
+  const lines = [];
 
-    lines.push({type:"spacer"});
-    lines.push({type:"h2", text:"Standings (includes all teams)"});
+  // --- High Game Winners ---
+  lines.push({type:"h2", text:"High Game Winners (with handicap)"});
 
-    const maxRows = Math.min(rows.length, 60);
-    for (let i=0; i<maxRows; i++){
-      const r = rows[i];
-      const b3 = (r.best3==null ? "—" : String(r.best3));
-      lines.push({type:"row", text:`${String(i+1).padStart(2," ")}. ${r.team}   |   Total: ${b3}`});
-    }
-    if (rows.length > maxRows) lines.push({type:"row", text:`…and ${rows.length - maxRows} more`});
+  for (let gi=0; gi<4; gi++){
+    const first = leaders[gi].first.length
+      ? leaders[gi].first.map(x=>`${x.team} (${x.total})`).join(", ")
+      : "—";
 
-    let H = margin + 140;
-    for (const ln of lines){
-      if (ln.type==="h2") H += 44;
-      if (ln.type==="row") H += 26;
-      if (ln.type==="spacer") H += 18;
-    }
-    H += margin;
+    const second = leaders[gi].second.length
+      ? leaders[gi].second.map(x=>`${x.team} (${x.total})`).join(", ")
+      : "—";
 
-    const canvas = document.createElement("canvas");
-    canvas.width = W;
-    canvas.height = H;
-    const ctx = canvas.getContext("2d");
-
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0,0,W,H);
-
-    ctx.fillStyle = "#111";
-    ctx.font = "bold 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(title, margin, margin);
-
-    ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillStyle = "#333";
-    ctx.fillText(rule, margin, margin + 34);
-
-    ctx.fillStyle = "#666";
-    ctx.font = "16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-    ctx.fillText(timestamp, margin, margin + 58);
-
-    let y = margin + 95;
-    for (const ln of lines){
-      if (ln.type==="h2"){
-        ctx.fillStyle = "#111";
-        ctx.font = "bold 26px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        ctx.fillText(ln.text, margin, y);
-        y += 36;
-      } else if (ln.type==="row"){
-        ctx.fillStyle = "#111";
-        ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
-        y = drawWrapped(ctx, ln.text, margin, y, W - margin*2, 24);
-      } else {
-        y += 18;
-      }
-    }
-
-    const a = document.createElement("a");
-    a.download = "tournament-results.png";
-    a.href = canvas.toDataURL("image/png");
-    a.click();
+    lines.push({
+      type:"row",
+      text:`Game ${gi+1}:  1st: ${first}   |   2nd: ${second}`
+    });
   }
+
+  lines.push({type:"spacer"});
+
+  // --- Top 9 Standings ---
+  lines.push({type:"h2", text:"Top 9 Standings"});
+
+  rows.forEach((r,i)=>{
+    const total = (r.best3==null ? "—" : String(r.best3));
+    lines.push({
+      type:"row",
+      text:`${i+1}. ${r.team}   |   ${total}`
+    });
+  });
+
+  // --- Canvas sizing ---
+  let H = margin + 140;
+  for (const ln of lines){
+    if (ln.type==="h2") H += 44;
+    if (ln.type==="row") H += 26;
+    if (ln.type==="spacer") H += 18;
+  }
+  H += margin;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0,0,W,H);
+
+  ctx.fillStyle = "#111";
+  ctx.font = "bold 44px system-ui, -apple-system, Segoe UI";
+  ctx.fillText(title, margin, margin);
+
+  ctx.font = "18px system-ui, -apple-system, Segoe UI";
+  ctx.fillStyle = "#333";
+  ctx.fillText(rule, margin, margin + 34);
+
+  ctx.fillStyle = "#666";
+  ctx.font = "16px system-ui, -apple-system, Segoe UI";
+  ctx.fillText(timestamp, margin, margin + 58);
+
+  let y = margin + 95;
+
+  for (const ln of lines){
+    if (ln.type==="h2"){
+      ctx.fillStyle = "#111";
+      ctx.font = "bold 26px system-ui";
+      ctx.fillText(ln.text, margin, y);
+      y += 36;
+    }
+    else if (ln.type==="row"){
+      ctx.fillStyle = "#111";
+      ctx.font = "18px system-ui";
+      ctx.fillText(ln.text, margin, y);
+      y += 24;
+    }
+    else {
+      y += 18;
+    }
+  }
+
+  const a = document.createElement("a");
+  a.download = "tournament-results.png";
+  a.href = canvas.toDataURL("image/png");
+  a.click();
+}
+
 
   // =========================
   // Controls
@@ -1102,12 +1126,60 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
     renderResultsSheet();
     autosave();
   }
+// LockEntriesScores
+const LOCK_KEY = "editing_locked_v1";
+let editingLocked = false;
+
+function setEditingLocked(locked){
+  editingLocked = locked;
+
+  // Disable ALL inputs in the entry table (names/avg/scores/checkboxes)
+  document.querySelectorAll("#rows input").forEach(inp => {
+    // keep file inputs elsewhere unaffected; rows only contains entry inputs
+    inp.disabled = locked;
+  });
+
+  // Optional: disable “danger” tools when locked
+  const disableWhenLocked = ["randomBtn","clearBtn","applyCountBtn"];
+  disableWhenLocked.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = locked;
+  });
+
+  // Update button label
+  const btn = document.getElementById("lockBtn");
+  if (btn) btn.textContent = locked ? "Unlock Editing" : "Lock Editing";
+
+  // Persist
+  try { localStorage.setItem(LOCK_KEY, locked ? "1" : "0"); } catch(e) {}
+}
+
+function toggleEditingLock(){
+  // Add a confirmation when locking (helps prevent “oops”)
+  if (!editingLocked) {
+    const ok = confirm("Lock editing? This prevents accidental score changes.");
+    if (!ok) return;
+  }
+  setEditingLocked(!editingLocked);
+}
 
   // =========================
   // Boot
   // =========================
   window.addEventListener("DOMContentLoaded", () => {
-    // Build entry grid once
+    //TVmode link
+	if (new URLSearchParams(location.search).get("tv") === "1") {
+  document.body.classList.add("tv-mode");
+}
+	//LockEntriesScores
+	document.getElementById("lockBtn")?.addEventListener("click", toggleEditingLock);
+
+// restore lock state on load
+let locked = false;
+try { locked = localStorage.getItem(LOCK_KEY) === "1"; } catch(e) {}
+setEditingLocked(locked);
+
+	// Build entry grid once
     buildEntryTable();
 
     // Tools collapse
@@ -1134,9 +1206,8 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
     // Buttons (these elements must exist in your HTML)
     $("applyCountBtn")?.addEventListener("click", applyTeamCount);
     $("randomBtn")?.addEventListener("click", randomSample);
-    $("clearBtn")?.addEventListener("click", clearScores);
+    $("clearBtn")?.addEventListener("click", () => {if (confirm("Clear all scores?")) clearScores();});
     $("printBtn")?.addEventListener("click", () => window.print());
-
     $("tvBtn")?.addEventListener("click", toggleTVMode);
     $("pngBtn")?.addEventListener("click", exportResultsPNG);
 
@@ -1187,7 +1258,7 @@ thead th:nth-child(9) { width: 12%; }  /* Best 3 */
   });
 </script>
 
-
+<div style="font-size:12px; opacity:.5;">v1.0</div>
 
 
 </body>
