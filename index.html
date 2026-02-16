@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bowling Tournament Demo — Best 3 of 4 (Handicap)</title>
+  <style>
+    :root { --border:#e6e6e6; --muted:#666; --text:#111; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 16px; color:var(--text); }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .sub { color:#444; margin: 0 0 14px; line-height:1.35; }
+    .rule { display:inline-block; margin-top:6px; color:#333; font-size:12px; border:1px solid var(--border); padding:6px 10px; border-radius:999px; }
+    .wrap { display:grid; grid-template-columns: 1.45fr 0.9fr; gap: 12px; align-items:start; }
+    .card { border:1px solid var(--border); border-radius:14px; padding:12px; background:#fff; }
+    .btns { display:flex; gap:8px; flex-wrap:wrap; }
+    button { padding:10px 12px; border-radius:12px; border:1px solid #111; background:#111; color:#fff; cursor:pointer; }
+    button.secondary { background:#fff; color:#111; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    input[type="text"], input[type="number"] {
+      width:100%; padding:8px; border:1px solid #ccc; border-radius:10px; font-size:13px;
+    }
+    input[type="file"] { font-size: 13px; }
+    table { border-collapse: collapse; width:100%; }
+    th, td { border-bottom: 1px solid #eee; padding: 8px; font-size: 13px; }
+    th { text-align:left; font-size:12px; color:#555; white-space:nowrap; }
+    .pill { display:inline-block; padding: 3px 10px; border:1px solid var(--border); border-radius:999px; font-size:12px; color:#333; }
+    .big { font-size: 16px; font-weight: 750; }
+    .muted { color:var(--muted); font-size:12px; }
+    .mono { font-variant-numeric: tabular-nums; }
+    .right { text-align:right; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .leader { display:flex; justify-content:space-between; gap:8px; margin-top:6px; }
+    .divider { margin-top:12px; border-top:1px dashed var(--border); padding-top:12px; }
+    .rowline { display:grid; grid-template-columns: 1fr 150px; gap:10px; align-items:center; }
+    .compact td { padding: 6px 8px; }
+    .rank { width: 28px; color:#555; }
+    .nowrap { white-space:nowrap; }
+
+    /* Results-only print */
+    @media print {
+      body { margin: 0.35in; }
+      #entryCard, #leadersCard .controls, #toolsRow { display:none !important; }
+      #resultsCard { display:block !important; }
+      .wrap { grid-template-columns: 1fr; }
+      .card { border: none; padding: 0; }
+      .pill, button, input, .muted { display:none !important; }
+      th, td { font-size: 11px; padding: 5px 6px; }
+      h1 { font-size: 16px; }
+      .sub { font-size: 11px; margin-bottom: 8px; }
+      .divider { border-top: none; padding-top: 0; }
+    }
+
+    @media (max-width: 980px) { .wrap { grid-template-columns: 1fr; } }
+	
+body.tv-mode #toolsRow,
+body.tv-mode #entryCard { display: none !important; }
+body.tv-mode .wrap { grid-template-columns: 1fr !important; }
+body.tv-mode #leadersCard { padding: 18px; }
+body.tv-mode .big { font-size: 26px; }
+body.tv-mode th, body.tv-mode td { font-size: 18px; padding: 10px 12px; }
+body.tv-mode .pill { font-size: 16px; padding: 6px 14px; }
+body.tv-mode .muted { font-size: 16px; }
+body.tv-mode h1 { font-size: 30px; }
+body.tv-mode .sub { font-size: 18px; }
+/* Leaderboard */
+.leaderboard { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+.lb-row{
+  display:flex; justify-content:space-between; align-items:center;
+  border:1px solid #efefef; border-radius:14px;
+  padding:10px 12px;
+  background:#fff;
+  transition: transform 220ms ease, opacity 220ms ease;
+}
+.lb-left{ display:flex; align-items:center; gap:10px; min-width:0; }
+.lb-rank{
+  width:36px; height:36px; border-radius:12px;
+  display:flex; align-items:center; justify-content:center;
+  font-weight:800;
+  border:1px solid #e9e9e9;
+  background:#fafafa;
+}
+.lb-team{ font-weight:650; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 360px; }
+.lb-score{ font-weight:800; font-size:18px; }
+.lb-muted{ color:#777; font-size:12px; margin-top:4px; }
+
+.lb-row.gold   { border-color:#f3e6b0; background:linear-gradient(90deg,#fffaf0,#fff); }
+.lb-row.silver { border-color:#e3e7ef; background:linear-gradient(90deg,#f7f9ff,#fff); }
+.lb-row.bronze { border-color:#f0d1b6; background:linear-gradient(90deg,#fff6ef,#fff); }
+.lb-row.gold   .lb-rank{ background:#fff3c4; border-color:#f3e6b0; }
+.lb-row.silver .lb-rank{ background:#eef2ff; border-color:#e3e7ef; }
+.lb-row.bronze .lb-rank{ background:#ffe7d6; border-color:#f0d1b6; }
+
+.lb-cut{
+  margin-top:8px;
+  display:flex; align-items:center; gap:10px;
+  color:#888; font-size:12px;
+}
+.lb-cut:before, .lb-cut:after{
+  content:""; flex:1; height:1px; background:#e5e5e5;
+}
+
+/* TV mode makes leaderboard bigger */
+body.tv-mode .lb-team{ max-width: 620px; font-size: 26px; }
+body.tv-mode .lb-score{ font-size: 30px; }
+body.tv-mode .lb-rank{ width:52px; height:52px; border-radius:18px; font-size:22px; }
+body.tv-mode .lb-row{ padding:16px 18px; border-radius:18px; }
+body.tv-mode .leaderboard{ gap:10px; }
+
+/* ===== FORCE THEME (paste at very bottom of <style>) ===== */
+:root{
+  --primary:#1f4ed8;
+  --primary-soft:#eaf1ff;
+  --border:#e5e7eb;
+  --text:#111827;
+  --muted:#6b7280;
+  --card:#ffffff;
+}
+
+body{
+  color: var(--text) !important;
+  background: #4fc2e5 !important;
+}
+
+h1, h2, h3{
+  color: var(--primary) !important;
+}
+
+/* Most of your layout is likely using .card */
+.card{
+  background: var(--card) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 6px 22px rgba(0,0,0,.05) !important;
+}
+
+/* Buttons */
+button{
+  background: #fff !important;
+  border: 1px solid #d1d5db !important;
+  border-radius: 12px !important;
+  padding: 10px 14px !important;
+  cursor: pointer !important;
+  transition: all 150ms ease !important;
+}
+button:hover{
+  background: var(--primary-soft) !important;
+  border-color: var(--primary) !important;
+}
+button.primary{
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+}
+
+/* Tables */
+table{
+  width: 100% !important;
+  border-collapse: collapse !important;
+}
+thead th{
+  color: var(--muted) !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: .04em !important;
+  font-size: 12px !important;
+  border-bottom: 1px solid var(--border) !important;
+  padding-bottom: 10px !important;
+}
+
+/* Inputs */
+input[type="text"], input[type="number"]{
+  border: 1px solid #d1d5db !important;
+  border-radius: 14px !important;
+  padding: 10px 12px !important;
+}
+input[type="text"]:focus, input[type="number"]:focus{
+  outline: none !important;
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px rgba(31,78,216,.15) !important;
+}
+
+/* ===== Prevent overlapping in Entry table ===== */
+
+/* Make table behave properly */
+table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+/* Prevent cell overflow */
+td, th {
+  overflow: hidden;
+  vertical-align: middle;
+}
+
+/* Make inputs respect cell width */
+td input {
+  width: 100%;
+  min-width: 0;           /* critical for flex/table shrink */
+  box-sizing: border-box; /* prevents overflow */
+}
+
+/* Give columns predictable widths */
+thead th:nth-child(1) { width: 24%; }  /* Team */
+thead th:nth-child(2) { width: 8%; }   /* Avg */
+thead th:nth-child(3) { width: 6%; }   /* HG? */
+thead th:nth-child(4) { width: 6%; }   /* HCP */
+thead th:nth-child(5),
+thead th:nth-child(6),
+thead th:nth-child(7),
+thead th:nth-child(8) { width: 8%; }   /* G1-G4 */
+thead th:nth-child(9) { width: 12%; }  /* Best 3 */
+
+.card.collapsed > *:not(button):not(:first-child) {
+  display: none;
+}
+
+  
+/* Collapsible Tools (safe, no HTML hunting) */
+#toolsRow.collapsed #toolsBody { display: none !important; }
+#toolsRow.collapsed { padding-bottom: 10px; }
+
+  </style>
+</head>
+<body>
+  <h1>Tournament Night (Demo)</h1>
+  <div class="sub">
+    4 games • Best 3 of 4 • Standings sorted high→low • Top 2 per game (with handicap, ties shown)
+    <div class="rule mono">Handicap/game = ROUND(MAX(0, (210 − Avg) × 0.80))</div>
+  </div>
+
+  <div id="toolsRow" class="card" style="margin-bottom:12px;">
+    <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;">
+      <div>
+        <div class="big">Tools</div>
+        <div class="muted">Import teams quickly, set team count, or print a results-only sheet.</div>
+      </div>
+      <div class="btns">
+        
+        <button class="secondary" id="toggleToolsBtn">Hide Tools</button>
+<button class="secondary" id="randomBtn">Random Sample Data</button>
+        <button class="secondary" id="clearBtn">Clear Scores</button>
+        <button class="secondary" id="printBtn">Print Results</button>
+		<button class="secondary" id="tvBtn">TV Mode</button>
+        <button class="secondary" id="pngBtn">Export PNG</button>
+		<button class="secondary" id="saveBtn">Save</button>
+        <button class="secondary" id="loadBtn">Load</button>
+        <button class="secondary" id="restoreBtn" disabled>Restore Last</button>
+        <input id="loadFile" type="file" accept="application/json" style="display:none" />
+      </div>
+    </div>
+
+    <div id="toolsBody" style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-top:12px;">
+      <div class="card" style="padding:10px;">
+        <div class="muted">Team count</div>
+        <div class="rowline" style="margin-top:6px;">
+          <div><input id="teamCount" type="number" min="2" max="200" step="1" value="35" /></div>
+          <div><button class="secondary" id="applyCountBtn">Apply</button></div>
+        </div>
+        <div class="muted" style="margin-top:6px;">Defaults to 35 teams.</div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <div class="muted">Import CSV</div>
+        <div style="margin-top:6px;">
+          <input id="csvFile" type="file" accept=".csv,text/csv" />
+        </div>
+        <div class="muted" style="margin-top:6px;">
+          Columns supported: <span class="mono">Team, Avg, G1, G2, G3, G4</span>
+        </div>
+      </div>
+
+      <div class="card" style="padding:10px;">
+        <div class="muted">Notes</div>
+        <ul class="muted" style="margin:6px 0 0; padding-left:18px;">
+          <li>Standings appear once a team has <span class="mono">3</span> games.</li>
+          <li>Top 2 per game uses <strong>handicap-added totals</strong>.</li>
+          <li>Print hides all entry inputs automatically.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <!-- Entry / Input -->
+    <div id="entryCard" class="card">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:center;">
+        <div>
+          <div class="big">Entry</div>
+          <div class="muted">Enter team name, average, and scratch scores. Handicap is applied per game.</div>
+        </div>
+        <div class="muted">Tip: Use CSV import to set up in seconds.</div>
+      </div>
+
+      <div style="overflow:auto; margin-top:10px; max-height: 70vh;">
+        <table>
+<thead>
+  <tr>
+    <th>Team</th>
+    <th class="right">Avg</th>
+    <th class="right">HG?</th>
+    <th class="right">HCP</th>
+    <th class="right">G1</th>
+    <th class="right">G2</th>
+    <th class="right">G3</th>
+    <th class="right">G4</th>
+    <th class="right">Best 3 (w/HCP)</th>
+  </tr>
+</thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Leaders + Results -->
+    <div id="leadersCard" class="card">
+      <div style="display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; align-items:flex-start;">
+        <div>
+          <div class="big">Leaders</div>
+          <div class="muted">Top 2 scores for each game (with handicap). Ties are shown.</div>
+        </div>
+        <div class="controls">
+          <span class="pill">Live</span>
+        </div>
+      </div>
+
+      <div id="leaders" class="grid2" style="margin-top:10px;"></div>
+
+      <div class="divider">
+        <div class="big">Standings</div>
+        <div class="muted">Sorted by Best 3 (w/HCP), highest to lowest. Requires 3 games to rank.</div>
+        <div id="standings" style="margin-top:8px;"></div>
+      </div>
+
+      <!-- Results-only section (shown on screen too, but this is what prints) -->
+      <div id="resultsCard" class="divider">
+        <div class="big">Results Sheet</div>
+        <div class="muted">This is what prints: standings + top 2 per game.</div>
+        <div id="resultsLeaders" style="margin-top:8px;"></div>
+        <div id="resultsTable" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  // =========================
+  // Config
+  // =========================
+  const BASE = 210;
+  const PCT  = 0.80;
+  const HCP = (avg) => Math.round(Math.max(0, (BASE - avg) * PCT));
+
+  const DEFAULT_TEAMS = 35;
+
+  // Save/Autosave
+  const STORAGE_KEY = "bowling_tournament_autosave_v1";
+
+  // =========================
+  // State
+  // =========================
+  let teams = makeDefaultTeams(DEFAULT_TEAMS);
+
+  function makeDefaultTeams(n){
+    return Array.from({length: n}).map((_,i)=>({
+      id: i+1,
+      name: `Team ${i+1}`,
+      avg: 160,
+      eligible: true,             // ✅ NEW (High Game eligible)
+      g: [null,null,null,null]    // scratch
+    }));
+  }
+
+  // standings animation memory (for subtle movement)
+  let lastStandingsOrder = [];
+
+  // =========================
+  // DOM helpers
+  // =========================
+  const $ = (id) => document.getElementById(id);
+
+  function clearNode(node){
+    while (node.firstChild) node.removeChild(node.firstChild);
+  }
+
+  function escapeHtml(s){
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+
+  // =========================
+  // Calculations
+  // =========================
+  // ✅ Show standings as soon as 1 game entered:
+  // 1 game -> total of 1
+  // 2 games -> total of 2
+  // 3+ games -> best 3
+  function best3withHcp(team){
+    const h = HCP(team.avg);
+    const totals = team.g
+      .map(s => (s==null || s==="") ? null : (Number(s) + h))
+      .filter(v => v != null);
+
+    if (totals.length === 0) return null;
+
+    if (totals.length < 3){
+      return totals.reduce((a,b)=>a+b,0);
+    }
+
+    totals.sort((a,b)=>b-a);
+    return totals[0] + totals[1] + totals[2];
+  }
+
+  // ✅ High game leaders should exclude ineligible teams
+  function top2ForGame(gameIdx){
+    const entries = teams
+      .filter(t => t.eligible !== false)  // ✅ NEW
+      .map(t=>{
+        const s = t.g[gameIdx];
+        if (s==null || s==="") return null;
+        return { team: t.name, total: Number(s) + HCP(t.avg) };
+      })
+      .filter(Boolean)
+      .sort((a,b)=>b.total-a.total);
+
+    if (!entries.length) return {first:[], second:[]};
+
+    const firstVal = entries[0].total;
+    const first = entries.filter(x => x.total === firstVal);
+
+    const secondVal = entries.find(x => x.total < firstVal)?.total;
+    const second = (secondVal == null) ? [] : entries.filter(x => x.total === secondVal);
+
+    return {first, second};
+  }
+
+  function getStandingsRows(){
+    const rows = teams.map(t => ({
+      team: t.name,
+      avg: t.avg,
+      hcp: HCP(t.avg),
+      eligible: (t.eligible !== false),
+      g: [...t.g],
+      best3: best3withHcp(t)
+    }));
+
+    rows.sort((a,b)=>{
+      const av = (a.best3==null) ? -Infinity : a.best3;
+      const bv = (b.best3==null) ? -Infinity : b.best3;
+      return bv - av;
+    });
+
+    return rows;
+  }
+
+  // =========================
+  // Entry Table (built once, never rebuilt while typing)
+  // =========================
+  function buildEntryTable(){
+    const tbody = $("rows");
+    clearNode(tbody);
+
+    teams.forEach((t, idx) => {
+      const tr = document.createElement("tr");
+
+      // Team name
+      const tdName = document.createElement("td");
+      const inpName = document.createElement("input");
+      inpName.type = "text";
+      inpName.value = t.name;
+      inpName.addEventListener("input", () => {
+        t.name = inpName.value;
+        scheduleDerivedUpdate();
+      });
+      tdName.appendChild(inpName);
+      tr.appendChild(tdName);
+
+      // Avg
+      const tdAvg = document.createElement("td");
+      tdAvg.className = "right";
+      const inpAvg = document.createElement("input");
+      inpAvg.type = "number";
+      inpAvg.min = "0"; inpAvg.max = "300"; inpAvg.step = "1";
+      inpAvg.value = t.avg;
+      inpAvg.addEventListener("input", () => {
+        const v = inpAvg.value;
+        t.avg = (v === "" ? 0 : Number(v));
+        updateRowComputed(idx);
+        scheduleDerivedUpdate();
+      });
+      tdAvg.appendChild(inpAvg);
+      tr.appendChild(tdAvg);
+
+      // ✅ HG Eligible checkbox column (HG?)
+      const tdElig = document.createElement("td");
+      tdElig.className = "right";
+      const chk = document.createElement("input");
+      chk.type = "checkbox";
+      chk.checked = (t.eligible !== false);
+      chk.title = "Eligible for High Game";
+      chk.addEventListener("change", () => {
+        t.eligible = chk.checked;
+        scheduleDerivedUpdate(); // refresh leaders/results
+      });
+      tdElig.appendChild(chk);
+      tr.appendChild(tdElig);
+
+      // HCP display
+      const tdHcp = document.createElement("td");
+      tdHcp.className = "right mono";
+      tr.appendChild(tdHcp);
+
+      // Games 1-4
+      for (let gi=0; gi<4; gi++){
+        const tdG = document.createElement("td");
+        tdG.className = "right";
+        const inpG = document.createElement("input");
+        inpG.type = "number";
+        inpG.min = "0"; inpG.max = "400"; inpG.step = "1";
+        inpG.value = (t.g[gi] ?? "");
+        inpG.addEventListener("input", () => {
+          const v = inpG.value;
+          t.g[gi] = (v === "" ? null : Number(v));
+          updateRowComputed(idx);
+          scheduleDerivedUpdate();
+        });
+        tdG.appendChild(inpG);
+        tr.appendChild(tdG);
+      }
+
+      // Best3 cell
+      const tdBest = document.createElement("td");
+      tdBest.className = "right mono";
+      tr.appendChild(tdBest);
+
+      tbody.appendChild(tr);
+
+      // initial computed
+      updateRowComputed(idx);
+    });
+  }
+
+  function updateRowComputed(index){
+    const tbody = $("rows");
+    const tr = tbody.children[index];
+    if (!tr) return;
+
+    const team = teams[index];
+    const h = HCP(team.avg);
+    const b3 = best3withHcp(team);
+
+    // With HG? column added:
+    // 0 name, 1 avg, 2 hg?, 3 hcp, 4 g1, 5 g2, 6 g3, 7 g4, 8 best3
+    tr.children[3].textContent = String(h);
+    tr.children[8].textContent = (b3 == null) ? "—" : String(b3);
+  }
+
+  // =========================
+  // Leaders / Standings / Results (safe to rebuild)
+  // =========================
+  function renderLeaders(){
+    const root = $("leaders");
+    clearNode(root);
+
+    for (let gi=0; gi<4; gi++){
+      const t2 = top2ForGame(gi);
+      const firstTxt = t2.first.length ? t2.first.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      const secondTxt = t2.second.length ? t2.second.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+
+      const card = document.createElement("div");
+      card.className = "card";
+      card.style.padding = "10px";
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="big">Game ${gi+1}</div>
+          <span class="pill">Top 2</span>
+        </div>
+        <div class="leader">
+          <div>
+            <div class="muted">1st</div>
+            <div class="mono">${escapeHtml(firstTxt)}</div>
+          </div>
+          <div class="right">
+            <div class="muted">2nd</div>
+            <div class="mono">${escapeHtml(secondTxt)}</div>
+          </div>
+        </div>
+      `;
+      root.appendChild(card);
+    }
+  }
+
+  // TOP 9 ONLY scoreboard + subtle movement animation.
+  // Requires the CSS classes: .leaderboard .lb-row .lb-rank .lb-team .lb-score .gold/.silver/.bronze .lb-cut etc.
+  function renderStandings(){
+    const root = $("standings");
+    clearNode(root);
+
+    const rowsAll = getStandingsRows();
+    const rows = rowsAll.slice(0, 9);
+
+    const board = document.createElement("div");
+    board.className = "leaderboard";
+
+    const newOrder = rows.map(r => r.team);
+
+    rows.forEach((r, i) => {
+      const row = document.createElement("div");
+      row.className = "lb-row " + (i===0 ? "gold" : i===1 ? "silver" : i===2 ? "bronze" : "");
+
+      const prevIndex = lastStandingsOrder.indexOf(r.team);
+      if (prevIndex !== -1 && prevIndex !== i) {
+        const delta = (prevIndex - i);
+        row.style.transform = `translateY(${Math.max(-18, Math.min(18, delta * 6))}px)`;
+        row.style.opacity = "0.85";
+        requestAnimationFrame(() => {
+          row.style.transform = "translateY(0px)";
+          row.style.opacity = "1";
+        });
+      }
+
+      const scoreTxt = (r.best3==null ? "—" : String(r.best3));
+
+      row.innerHTML = `
+        <div class="lb-left">
+          <div class="lb-rank">${i+1}</div>
+          <div style="min-width:0;">
+            <div class="lb-team">${escapeHtml(r.team)}</div>
+            <div class="lb-muted mono">Avg ${r.avg} • HCP ${r.hcp}</div>
+          </div>
+        </div>
+        <div class="lb-score mono">${escapeHtml(scoreTxt)}</div>
+      `;
+
+      board.appendChild(row);
+    });
+
+    const cut = document.createElement("div");
+    cut.className = "lb-cut";
+    cut.innerHTML = `<span class="mono">TOP 9</span><span>Showing scoreboard leaders only</span>`;
+    board.appendChild(cut);
+
+    root.appendChild(board);
+    lastStandingsOrder = newOrder;
+  }
+
+  function renderResultsSheet(){
+    const leadersRoot = $("resultsLeaders");
+    const tableRoot = $("resultsTable");
+    if (!leadersRoot || !tableRoot) return;
+
+    clearNode(leadersRoot);
+    clearNode(tableRoot);
+
+    // Leaders compact table (already respects HG eligibility via top2ForGame)
+    const lt = document.createElement("table");
+    lt.className = "compact";
+    lt.innerHTML = `
+      <thead>
+        <tr>
+          <th>Game</th>
+          <th>1st (with HCP)</th>
+          <th>2nd (with HCP)</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    const ltb = lt.querySelector("tbody");
+
+    for (let gi=0; gi<4; gi++){
+      const t2 = top2ForGame(gi);
+      const firstTxt = t2.first.length ? t2.first.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      const secondTxt = t2.second.length ? t2.second.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">Game ${gi+1}</td>
+        <td class="mono">${escapeHtml(firstTxt)}</td>
+        <td class="mono">${escapeHtml(secondTxt)}</td>
+      `;
+      ltb.appendChild(tr);
+    }
+    leadersRoot.appendChild(lt);
+
+    // Full standings table (includes everyone; HG? only affects High Game leaders)
+    const rows = getStandingsRows();
+    const fmt = (v)=> (v==null || v==="") ? "—" : String(v);
+
+    const st = document.createElement("table");
+    st.className = "compact";
+    st.innerHTML = `
+      <thead>
+        <tr>
+          <th>#</th><th>Team</th>
+          <th class="right">Avg</th><th class="right">HCP</th>
+          <th class="right">G1</th><th class="right">G2</th><th class="right">G3</th><th class="right">G4</th>
+          <th class="right">Best 3 (w/HCP)</th>
+          <th class="right">HG?</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
+    const stb = st.querySelector("tbody");
+
+    rows.forEach((r,i)=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="mono">${i+1}</td>
+        <td>${escapeHtml(r.team)}</td>
+        <td class="right mono">${r.avg}</td>
+        <td class="right mono">${r.hcp}</td>
+        <td class="right mono">${fmt(r.g[0])}</td>
+        <td class="right mono">${fmt(r.g[1])}</td>
+        <td class="right mono">${fmt(r.g[2])}</td>
+        <td class="right mono">${fmt(r.g[3])}</td>
+        <td class="right mono">${r.best3==null ? "—" : r.best3}</td>
+        <td class="right mono">${r.eligible ? "Y" : "N"}</td>
+      `;
+      stb.appendChild(tr);
+    });
+
+    tableRoot.appendChild(st);
+  }
+
+  // =========================
+  // Autosave + Save/Load file
+  // =========================
+  function exportState(){
+    return {
+      version: 1,
+      base: BASE,
+      pct: PCT,
+      savedAt: new Date().toISOString(),
+      teams: teams.map(t => ({
+        name: t.name,
+        avg: t.avg,
+        eligible: (t.eligible !== false), // ✅ NEW
+        g: t.g
+      }))
+    };
+  }
+
+  function enableRestoreButton(){
+    const btn = $("restoreBtn");
+    if (!btn) return;
+    btn.disabled = !localStorage.getItem(STORAGE_KEY);
+  }
+
+  function autosave(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(exportState()));
+      enableRestoreButton();
+    } catch (e) {
+      console.warn("Autosave failed:", e);
+    }
+  }
+
+  function restoreAutosave(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    try {
+      const obj = JSON.parse(raw);
+      importState(obj);
+    } catch (e) {
+      console.warn("Restore failed:", e);
+    }
+  }
+
+  function saveToFile(){
+    const data = exportState();
+    const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tournament-lineup.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function importState(obj){
+    if (!obj || !Array.isArray(obj.teams)) return false;
+
+    teams = obj.teams.map((t, i) => ({
+      id: i+1,
+      name: (t?.name ?? `Team ${i+1}`),
+      avg: Number(t?.avg ?? 0) || 0,
+      eligible: (t?.eligible !== false), // ✅ NEW
+      g: Array.isArray(t?.g)
+        ? t.g.slice(0,4).map(v => (v==null || v==="" ? null : Number(v)))
+        : [null,null,null,null]
+    }));
+
+    $("teamCount").value = String(teams.length);
+
+    buildEntryTable();
+
+    // Tools collapse (no overlap with other init)
+    const toolsRow = $("toolsRow");
+    const toolsBtn = $("toggleToolsBtn");
+    if (toolsRow && toolsBtn){
+      const setState = (collapsed) => {
+        toolsRow.classList.toggle("collapsed", collapsed);
+        toolsBtn.textContent = collapsed ? "Show Tools" : "Hide Tools";
+        try { localStorage.setItem("tools_collapsed_v1", collapsed ? "1" : "0"); } catch(e) {}
+      };
+
+      // restore last state
+      let collapsed = false;
+      try { collapsed = localStorage.getItem("tools_collapsed_v1") === "1"; } catch(e) {}
+      setState(collapsed);
+
+      toolsBtn.addEventListener("click", () => {
+        setState(!toolsRow.classList.contains("collapsed"));
+      });
+    }
+
+
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+    autosave();
+    return true;
+  }
+
+  // =========================
+  // Debounced derived update (leaders/standings/results only)
+  // =========================
+  let derivedTimer = null;
+  function scheduleDerivedUpdate(){
+    clearTimeout(derivedTimer);
+    derivedTimer = setTimeout(() => {
+      renderLeaders();
+      renderStandings();
+      renderResultsSheet();
+      autosave();
+    }, 150);
+  }
+
+  // =========================
+  // CSV import
+  // =========================
+  function normalizeHeader(h){ return (h||"").toLowerCase().replace(/\s+/g,""); }
+
+  function toNumOrNull(v){
+    if (v==null) return null;
+    const s = String(v).trim();
+    if (s==="") return null;
+    const n = Number(s);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function parseBoolEligible(v){
+    const s = String(v ?? "").trim().toLowerCase();
+    if (s === "") return true; // default eligible
+    if (["n","no","false","0","x"].includes(s)) return false;
+    if (["y","yes","true","1"].includes(s)) return true;
+    return true;
+  }
+
+  function parseCSV(text){
+    const rows = [];
+    let i=0, field="", row=[], inQuotes=false;
+
+    while (i < text.length){
+      const c = text[i];
+
+      if (inQuotes){
+        if (c === '"'){
+          const next = text[i+1];
+          if (next === '"'){ field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      } else {
+        if (c === '"'){ inQuotes=true; i++; continue; }
+        if (c === ','){ row.push(field); field=""; i++; continue; }
+        if (c === '\n' || c === '\r'){
+          if (c === '\r' && text[i+1] === '\n') i++;
+          row.push(field); field="";
+          rows.push(row.map(x => String(x ?? "").trim()));
+          row=[]; i++; continue;
+        }
+        field += c; i++; continue;
+      }
+    }
+    row.push(field);
+    if (row.length > 1 || (row[0] ?? "").trim() !== "") rows.push(row.map(x => String(x ?? "").trim()));
+    return rows;
+  }
+
+  function loadFromCSV(text){
+    const rows = parseCSV(text).filter(r => r.some(x => (x ?? "").trim() !== ""));
+    if (!rows.length) return;
+
+    const header = rows[0].map(normalizeHeader);
+    const hasHeader = header.includes("team") || header.includes("avg") || header.includes("g1");
+
+    let dataRows = rows;
+    let col = { team:0, avg:1, eligible:-1, g1:2, g2:3, g3:4, g4:5 };
+
+    if (hasHeader){
+      col = {
+        team: header.indexOf("team"),
+        avg: header.indexOf("avg"),
+        eligible: header.indexOf("eligible"), // optional
+        g1: header.indexOf("g1"),
+        g2: header.indexOf("g2"),
+        g3: header.indexOf("g3"),
+        g4: header.indexOf("g4"),
+      };
+      dataRows = rows.slice(1);
+    }
+
+    teams = dataRows.map((r, idx)=>({
+      id: idx+1,
+      name: (col.team>=0 ? (r[col.team] ?? "") : `Team ${idx+1}`) || `Team ${idx+1}`,
+      avg: Number(col.avg>=0 ? (r[col.avg] ?? 0) : 0) || 0,
+      eligible: (col.eligible>=0 ? parseBoolEligible(r[col.eligible]) : true), // ✅ NEW
+      g: [
+        toNumOrNull(col.g1>=0 ? r[col.g1] : null),
+        toNumOrNull(col.g2>=0 ? r[col.g2] : null),
+        toNumOrNull(col.g3>=0 ? r[col.g3] : null),
+        toNumOrNull(col.g4>=0 ? r[col.g4] : null),
+      ]
+    }));
+
+    $("teamCount").value = String(teams.length);
+
+    buildEntryTable();
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+    autosave();
+  }
+
+  // =========================
+  // TV Mode
+  // =========================
+  function isFullscreen(){ return document.fullscreenElement != null; }
+
+  async function toggleTVMode(){
+    const on = document.body.classList.toggle("tv-mode");
+    const btn = $("tvBtn");
+    if (btn) btn.textContent = on ? "Exit TV Mode" : "TV Mode";
+    try {
+      if (on && !isFullscreen()) await document.documentElement.requestFullscreen();
+      if (!on && isFullscreen()) await document.exitFullscreen();
+    } catch (e) {
+      console.warn("Fullscreen blocked:", e);
+    }
+  }
+
+  // =========================
+  // Export PNG
+  // =========================
+  function drawWrapped(ctx, text, x, y, maxWidth, lineHeight){
+    const words = text.split(" ");
+    let line = "";
+    for (let n = 0; n < words.length; n++){
+      const testLine = line + words[n] + " ";
+      if (ctx.measureText(testLine).width > maxWidth && n > 0){
+        ctx.fillText(line, x, y);
+        line = words[n] + " ";
+        y += lineHeight;
+      } else {
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, y);
+    return y + lineHeight;
+  }
+
+  function exportResultsPNG(){
+    const rows = getStandingsRows();
+    const leaders = Array.from({length:4}).map((_,gi)=>top2ForGame(gi));
+
+    const title = "Tournament Results";
+    const rule  = "Handicap/game = ROUND(MAX(0, (210 − Avg) × 0.80))";
+    const timestamp = new Date().toLocaleString();
+
+    const W = 1400;
+    const margin = 60;
+
+    const lines = [];
+    lines.push({type:"h2", text:"Top 2 Per Game (with handicap, eligible teams only)"});
+    for (let gi=0; gi<4; gi++){
+      const first = leaders[gi].first.length ? leaders[gi].first.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      const second = leaders[gi].second.length ? leaders[gi].second.map(x=>`${x.team} (${x.total})`).join(", ") : "—";
+      lines.push({type:"row", text:`Game ${gi+1}:  1st: ${first}   |   2nd: ${second}`});
+    }
+
+    lines.push({type:"spacer"});
+    lines.push({type:"h2", text:"Standings (includes all teams)"});
+
+    const maxRows = Math.min(rows.length, 60);
+    for (let i=0; i<maxRows; i++){
+      const r = rows[i];
+      const b3 = (r.best3==null ? "—" : String(r.best3));
+      lines.push({type:"row", text:`${String(i+1).padStart(2," ")}. ${r.team}   |   Total: ${b3}`});
+    }
+    if (rows.length > maxRows) lines.push({type:"row", text:`…and ${rows.length - maxRows} more`});
+
+    let H = margin + 140;
+    for (const ln of lines){
+      if (ln.type==="h2") H += 44;
+      if (ln.type==="row") H += 26;
+      if (ln.type==="spacer") H += 18;
+    }
+    H += margin;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0,0,W,H);
+
+    ctx.fillStyle = "#111";
+    ctx.font = "bold 44px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(title, margin, margin);
+
+    ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillStyle = "#333";
+    ctx.fillText(rule, margin, margin + 34);
+
+    ctx.fillStyle = "#666";
+    ctx.font = "16px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+    ctx.fillText(timestamp, margin, margin + 58);
+
+    let y = margin + 95;
+    for (const ln of lines){
+      if (ln.type==="h2"){
+        ctx.fillStyle = "#111";
+        ctx.font = "bold 26px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        ctx.fillText(ln.text, margin, y);
+        y += 36;
+      } else if (ln.type==="row"){
+        ctx.fillStyle = "#111";
+        ctx.font = "18px system-ui, -apple-system, Segoe UI, Roboto, Arial";
+        y = drawWrapped(ctx, ln.text, margin, y, W - margin*2, 24);
+      } else {
+        y += 18;
+      }
+    }
+
+    const a = document.createElement("a");
+    a.download = "tournament-results.png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+  }
+
+  // =========================
+  // Controls
+  // =========================
+  function applyTeamCount(){
+    const raw = $("teamCount").value;
+    const n = Math.max(2, Math.min(200, parseInt(raw, 10) || DEFAULT_TEAMS));
+
+    if (n > teams.length){
+      const nextId = teams.length ? Math.max(...teams.map(t=>t.id))+1 : 1;
+      for (let k=0; k<n-teams.length; k++){
+        teams.push({ id: nextId+k, name:`Team ${nextId+k}`, avg:160, eligible:true, g:[null,null,null,null] });
+      }
+    } else if (n < teams.length){
+      teams = teams.slice(0, n);
+    }
+
+    $("teamCount").value = String(n);
+
+    buildEntryTable();
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+    autosave();
+  }
+
+  function randomSample(){
+    const sample = ["Strikers","Pin Pals","Turkey Time","Spare Kings","Gutter Guards","Lane Legends","Split Happens","Pocket Rockets","Alley Cats","Pin Crushers","Spare Me","Rolling Thunder","Ten In A Row","Bowling Stones","Kingpins","Frame By Frame"];
+    teams.forEach((t,i)=>{
+      t.name = sample[i % sample.length] + (i>=sample.length ? ` ${Math.floor(i/sample.length)+1}` : "");
+      t.avg = 120 + Math.floor(Math.random()*91);
+      t.eligible = true;
+      t.g = [null,null,null,null];
+    });
+
+    buildEntryTable();
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+    autosave();
+  }
+
+  function clearScores(){
+    teams.forEach(t => t.g = [null,null,null,null]);
+    buildEntryTable();
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+    autosave();
+  }
+
+  // =========================
+  // Boot
+  // =========================
+  window.addEventListener("DOMContentLoaded", () => {
+    // Build entry grid once
+    buildEntryTable();
+
+    // Tools collapse
+    const toolsRow = $("toolsRow");
+    const toolsBtn = $("toggleToolsBtn");
+    const toolsBody = document.getElementById("toolsBody");
+    if (toolsRow && toolsBtn && toolsBody){
+      const setState = (collapsed) => {
+        toolsRow.classList.toggle("collapsed", collapsed);
+        toolsBtn.textContent = collapsed ? "Show Tools" : "Hide Tools";
+        try { localStorage.setItem("tools_collapsed_v1", collapsed ? "1" : "0"); } catch(e) {}
+      };
+      let collapsed = false;
+      try { collapsed = localStorage.getItem("tools_collapsed_v1") === "1"; } catch(e) {}
+      setState(collapsed);
+      toolsBtn.addEventListener("click", () => setState(!toolsRow.classList.contains("collapsed")));
+    }
+
+    // Initial derived render
+    renderLeaders();
+    renderStandings();
+    renderResultsSheet();
+
+    // Buttons (these elements must exist in your HTML)
+    $("applyCountBtn")?.addEventListener("click", applyTeamCount);
+    $("randomBtn")?.addEventListener("click", randomSample);
+    $("clearBtn")?.addEventListener("click", clearScores);
+    $("printBtn")?.addEventListener("click", () => window.print());
+
+    $("tvBtn")?.addEventListener("click", toggleTVMode);
+    $("pngBtn")?.addEventListener("click", exportResultsPNG);
+
+    // Save / Load / Restore
+    $("saveBtn")?.addEventListener("click", saveToFile);
+    $("loadBtn")?.addEventListener("click", () => $("loadFile")?.click());
+    $("restoreBtn")?.addEventListener("click", restoreAutosave);
+    enableRestoreButton();
+
+    const loadFile = $("loadFile");
+    if (loadFile){
+      loadFile.addEventListener("change", async (e)=>{
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const txt = await f.text();
+        try {
+          const ok = importState(JSON.parse(txt));
+          if (!ok) alert("That file doesn't look like a saved lineup.");
+        } catch (err) {
+          alert("That file doesn't look like a saved lineup.");
+        }
+        e.target.value = "";
+      });
+    }
+	
+	
+
+    // CSV import
+    const csvInput = $("csvFile");
+    if (csvInput){
+      csvInput.addEventListener("change", async (e)=>{
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const text = await file.text();
+        loadFromCSV(text);
+        e.target.value = "";
+      });
+    }
+
+    // Escape exits TV mode display class
+    document.addEventListener("keydown", (e)=>{
+      if (e.key === "Escape" && document.body.classList.contains("tv-mode")){
+        document.body.classList.remove("tv-mode");
+        const btn = $("tvBtn");
+        if (btn) btn.textContent = "TV Mode";
+      }
+    });
+  });
+</script>
+
+
+
+
+</body>
+</html>
